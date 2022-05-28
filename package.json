@@ -1,0 +1,23 @@
+{
+  "name": "silver-train",
+  "version": "1.0.0",
+  "description": "offline password manager",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/huijari/silver-train.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/huijari/silver-train/issues"
+  },
+  "homepage": "https://github.com/huijari/silver-train#readme",
+  "devDependencies": {
+    "typescript": "^4.7.2"
+  }
+}
