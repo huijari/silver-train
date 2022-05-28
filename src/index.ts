@@ -18,8 +18,39 @@ async function run(key: Buffer) {
 		message: 'Choose an account',
     choices: [ 'new account', ...names ]
 	}) as { accountName: string }
-	if (accountName === 'new account') console.log('new account')
-	else {
+	if (accountName === 'new account') {
+		const loginInformation: Account = await prompt([{
+			type: 'input',
+			name: 'name',
+			message: 'Account name'
+		}, {
+			type: 'input',
+			name: 'username',
+			message: 'Username'
+		}, {
+			type: 'password',
+			name: 'password',
+			message: 'Password'
+		}])
+
+		const iv = crypto.randomBytes(16)
+		const cipher = crypto.createCipheriv('aes256', key, iv)
+		const password = Buffer.concat([
+			cipher.update(loginInformation.password),
+			cipher.final()
+		])
+
+		config.set('accounts', [
+			...config.get('accounts') as Account[],
+			{
+				name: loginInformation.name,
+				username: loginInformation.username,
+				password: password.toString('base64'),
+				iv: iv.toString('base64')
+			}
+		])
+		console.log('account saved')
+	} else {
 		const account = (config.get('accounts') as Account[])
 			.find(({ name }: Account) => name === accountName)
 		console.log(account)
