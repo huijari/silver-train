@@ -2,9 +2,31 @@ import Conf from 'conf'
 import { prompt } from 'enquirer'
 import crypto from 'crypto'
 
+type Account = {
+	name: string,
+	username: string,
+	password: string
+}
+
 const config = new Conf()
 
-async function run() {
+async function run(key: Buffer) {
+	const names = ((config.get('accounts') as Account[]) ?? []).map(({ name }: Account) => name)
+	const { accountName } = await prompt({
+		type: 'autocomplete',
+		name: 'accountName',
+		message: 'Choose an account',
+    choices: [ 'new account', ...names ]
+	}) as { accountName: string }
+	if (accountName === 'new account') console.log('new account')
+	else {
+		const account = (config.get('accounts') as Account[])
+			.find(({ name }: Account) => name === accountName)
+		console.log(account)
+	}
+}
+
+async function init() {
 	const { password } = await prompt({
 		type: 'password',
 		name: 'password',
@@ -21,7 +43,7 @@ async function run() {
 		hmac.update(salt)
 		const sign = hmac.digest('base64')
 
-		if (sign !== config.get('sign')) console.log('invalid password')
+		if (sign !== config.get('sign')) return console.log('invalid password')
 		else console.log('password ok')
 	} else {
 		const salt = crypto.randomBytes(16)
@@ -38,7 +60,9 @@ async function run() {
 
 		console.log('setup complete')
 	}
+
+	run(key)
 }
 
-run()
+init()
 
