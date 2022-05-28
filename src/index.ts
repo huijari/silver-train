@@ -1,6 +1,6 @@
 import Conf from 'conf'
 import { prompt } from 'enquirer'
-import crypto from 'crypto'
+import * as crypto from 'crypto'
 
 type Account = {
 	name: string,
@@ -42,7 +42,7 @@ async function run(key: Buffer) {
 		])
 
 		config.set('accounts', [
-			...config.get('accounts') as Account[],
+			...config.get('accounts', []) as Account[],
 			{
 				name: loginInformation.name,
 				username: loginInformation.username,
