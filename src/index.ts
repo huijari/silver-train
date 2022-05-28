@@ -61,6 +61,7 @@ async function run(key: Buffer) {
 			message: 'What do',
 			choices: [
 				'Copy password',
+				'Edit account',
 				'Remove',
 				'Exit'
 			]
@@ -77,6 +78,64 @@ async function run(key: Buffer) {
 				]).toString()
 				const clipboard = await import('clipboardy')
 				clipboard.default.writeSync(password)
+				break
+			}
+			case 'Edit account': {
+				const { field } = await prompt({
+					type: 'select',
+					name: 'field',
+					message: 'What edit',
+					choices: [
+						'name',
+						'username',
+						'password',
+						'nevermind'
+					]
+				}) as { field: string }
+				switch (field) {
+					case ('name'): {
+						const { newName } = await prompt([{
+							type: 'input',
+							name: 'newName',
+							message: `New account name for '${account.name}'`
+						}]) as { newName: string }
+						config.set('accounts', 
+							(config.get('accounts') as Account[])
+								.map(acc => acc.name === account.name ? { ...acc, name: newName } : acc)
+						)
+						break
+					}
+					case ('username'): {
+						const { newUsername } = await prompt([{
+							type: 'input',
+							name: 'newUsername',
+							message: `New username for '${account.name}'`
+						}]) as { newUsername: string }
+						config.set('accounts', 
+							(config.get('accounts') as Account[])
+								.map(acc => acc.name === account.name ? { ...acc, username: newUsername } : acc)
+						)
+						break
+					}
+					case ('password'): {
+						const { newPassword } = await prompt([{
+							type: 'input',
+							name: 'newPassword',
+							message: `New password for '${account.name}'`
+						}]) as { newPassword: string }
+						const cipher = crypto.createCipheriv('aes256', key, Buffer.from(account.iv, 'base64'))
+						const newPasswordCipher = Buffer.concat([
+							cipher.update(newPassword),
+							cipher.final()
+						])
+						config.set('accounts', 
+							(config.get('accounts') as Account[])
+								.map(acc => acc.name === account.name ? { ...acc, password: newPasswordCipher.toString('base64'), } : acc)
+						)
+						break
+					}
+					default: return
+				}
 				break
 			}
 			case 'Remove': {
