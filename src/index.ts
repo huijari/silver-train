@@ -59,7 +59,11 @@ async function run(key: Buffer) {
 			type: 'select',
 			name: 'action',
 			message: 'What do',
-			choices: [ 'Copy password', 'Exit' ]
+			choices: [
+				'Copy password',
+				'Remove',
+				'Exit'
+			]
 		}) as { action: string }
 
 		switch (action) {
@@ -73,6 +77,19 @@ async function run(key: Buffer) {
 				]).toString()
 				const clipboard = await import('clipboardy')
 				clipboard.default.writeSync(password)
+				break
+			}
+			case 'Remove': {
+				const { proceed } = await prompt({
+					type: 'confirm',
+					name: 'proceed',
+					message: 'Are you sure?'
+				}) as { proceed: boolean }
+				if (proceed) {
+					const accounts = (config.get('accounts') as Account[])
+						.filter(({ name }) => name !== account.name)
+					config.set('accounts', accounts)
+				}
 				break
 			}
 			default: return
