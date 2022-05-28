@@ -5,7 +5,8 @@ import crypto from 'crypto'
 type Account = {
 	name: string,
 	username: string,
-	password: string
+	password: string,
+	iv: string
 }
 
 const config = new Conf()
@@ -52,8 +53,30 @@ async function run(key: Buffer) {
 		console.log('account saved')
 	} else {
 		const account = (config.get('accounts') as Account[])
-			.find(({ name }: Account) => name === accountName)
-		console.log(account)
+			.find(({ name }: Account) => name === accountName)!
+
+		const { action } = await prompt({
+			type: 'select',
+			name: 'action',
+			message: 'What do',
+			choices: [ 'Copy password', 'Exit' ]
+		}) as { action: string }
+
+		switch (action) {
+			case 'Copy password': {
+				const iv = Buffer.from(account.iv, 'base64')
+				const ciphertext = Buffer.from(account.password, 'base64')
+				const decipher = crypto.createDecipheriv('aes256', key, iv)
+				const password = Buffer.concat([
+					decipher.update(ciphertext),
+					decipher.final()
+				]).toString()
+				const clipboard = await import('clipboardy')
+				clipboard.default.writeSync(password)
+				break
+			}
+			default: return
+		}
 	}
 }
 
