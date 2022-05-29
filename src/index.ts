@@ -9,154 +9,224 @@ type Account = {
 	iv: string
 }
 
+type FirefoxAccount = {
+	url: string,
+	username: string,
+	password: string,
+	httpRealm: string,
+	formActionOrigin: string
+	guid: string
+	timeCreated: string
+	timeLastUsed: string
+	timePasswordChanged: string
+}
+
 const config = new Conf()
 
 async function run(key: Buffer) {
-	const names = ((config.get('accounts') as Account[]) ?? []).map(({ name }: Account) => name)
-	const { accountName } = await prompt({
-		type: 'autocomplete',
-		name: 'accountName',
-		message: 'Choose an account',
-    choices: [ 'new account', ...names, 'exit' ]
-	}) as { accountName: string }
-	if (accountName === 'new account') {
-		const loginInformation: Account = await prompt([{
-			type: 'input',
-			name: 'name',
-			message: 'Account name'
-		}, {
-			type: 'input',
-			name: 'username',
-			message: 'Username'
-		}, {
-			type: 'password',
-			name: 'password',
-			message: 'Password'
-		}])
 
-		const iv = crypto.randomBytes(16)
-		const cipher = crypto.createCipheriv('aes256', key, iv)
-		const password = Buffer.concat([
-			cipher.update(loginInformation.password),
-			cipher.final()
-		])
+	const { action } = await prompt({
+		type: 'select',
+		name: 'action',
+		message: "Silver train is a comin'",
+		choices: [
+			'my accounts',
+			'import from Firefox',
+			'exit',
+		]
+	}) as { action: string }
+	switch (action) {
+		case 'my accounts': {
+			const names = ((config.get('accounts') as Account[]) ?? []).map(({ name }: Account) => name)
+			const { accountName } = await prompt({
+				type: 'autocomplete',
+				name: 'accountName',
+				message: 'Choose an account',
+			choices: [ 'new account', ...names, 'exit']
+			}) as { accountName: string }
+			if (accountName === 'new account') {
+				const loginInformation: Account = await prompt([{
+					type: 'input',
+					name: 'name',
+					message: 'Account name'
+				}, {
+					type: 'input',
+					name: 'username',
+					message: 'Username'
+				}, {
+					type: 'password',
+					name: 'password',
+					message: 'Password'
+				}])
 
-		config.set('accounts', [
-			...config.get('accounts', []) as Account[],
-			{
-				name: loginInformation.name,
-				username: loginInformation.username,
-				password: password.toString('base64'),
-				iv: iv.toString('base64')
-			}
-		])
-		console.log('account saved')
-	} else if (accountName === 'exit') {
-		return false
-	}
-	else {
-		const account = (config.get('accounts') as Account[])
-			.find(({ name }: Account) => name === accountName)!
-
-		const { action } = await prompt({
-			type: 'select',
-			name: 'action',
-			message: 'What do',
-			choices: [
-				'Copy password',
-				'Edit account',
-				'Remove',
-				'Exit'
-			]
-		}) as { action: string }
-
-		switch (action) {
-			case 'Copy password': {
-				const iv = Buffer.from(account.iv, 'base64')
-				const ciphertext = Buffer.from(account.password, 'base64')
-				const decipher = crypto.createDecipheriv('aes256', key, iv)
+				const iv = crypto.randomBytes(16)
+				const cipher = crypto.createCipheriv('aes256', key, iv)
 				const password = Buffer.concat([
-					decipher.update(ciphertext),
-					decipher.final()
-				]).toString()
-				const clipboard = await import('clipboardy')
-				clipboard.default.writeSync(password)
-				break
-			}
-			case 'Edit account': {
-				const { field } = await prompt({
-					type: 'select',
-					name: 'field',
-					message: 'What edit',
-					choices: [
-						'name',
-						'username',
-						'password',
-						'nevermind'
-					]
-				}) as { field: string }
-				switch (field) {
-					case ('name'): {
-						const { newName } = await prompt([{
-							type: 'input',
-							name: 'newName',
-							message: `New account name for '${account.name}'`
-						}]) as { newName: string }
-						config.set('accounts', 
-							(config.get('accounts') as Account[])
-								.map(acc => acc.name === account.name ? { ...acc, name: newName } : acc)
-						)
-						break
+					cipher.update(loginInformation.password),
+					cipher.final()
+				])
+
+				config.set('accounts', [
+					...config.get('accounts', []) as Account[],
+					{
+						name: loginInformation.name,
+						username: loginInformation.username,
+						password: password.toString('base64'),
+						iv: iv.toString('base64')
 					}
-					case ('username'): {
-						const { newUsername } = await prompt([{
-							type: 'input',
-							name: 'newUsername',
-							message: `New username for '${account.name}'`
-						}]) as { newUsername: string }
-						config.set('accounts', 
-							(config.get('accounts') as Account[])
-								.map(acc => acc.name === account.name ? { ...acc, username: newUsername } : acc)
-						)
-						break
-					}
-					case ('password'): {
-						const { newPassword } = await prompt([{
-							type: 'input',
-							name: 'newPassword',
-							message: `New password for '${account.name}'`
-						}]) as { newPassword: string }
-						const cipher = crypto.createCipheriv('aes256', key, Buffer.from(account.iv, 'base64'))
-						const newPasswordCipher = Buffer.concat([
-							cipher.update(newPassword),
-							cipher.final()
-						])
-						config.set('accounts', 
-							(config.get('accounts') as Account[])
-								.map(acc => acc.name === account.name ? { ...acc, password: newPasswordCipher.toString('base64'), } : acc)
-						)
-						break
-					}
-				}
-				break
-			}
-			case 'Remove': {
-				const { proceed } = await prompt({
-					type: 'confirm',
-					name: 'proceed',
-					message: 'Are you sure?'
-				}) as { proceed: boolean }
-				if (proceed) {
-					const accounts = (config.get('accounts') as Account[])
-						.filter(({ name }) => name !== account.name)
-					config.set('accounts', accounts)
-				}
-				break
-			}
-			case 'Exit': {
+				])
+				console.log('account saved')
+			} else if (accountName === 'exit') {
 				return false
 			}
-			default: return
+			else {
+				const account = (config.get('accounts') as Account[])
+					.find(({ name }: Account) => name === accountName)!
+
+				const { action } = await prompt({
+					type: 'select',
+					name: 'action',
+					message: 'What do',
+					choices: [
+						'Copy password',
+						'Edit account',
+						'Remove',
+						'Exit'
+					]
+				}) as { action: string }
+
+				switch (action) {
+					case 'Copy password': {
+						const iv = Buffer.from(account.iv, 'base64')
+						const ciphertext = Buffer.from(account.password, 'base64')
+						const decipher = crypto.createDecipheriv('aes256', key, iv)
+						const password = Buffer.concat([
+							decipher.update(ciphertext),
+							decipher.final()
+						]).toString()
+						const clipboard = await import('clipboardy')
+						clipboard.default.writeSync(password)
+						break
+					}
+					case 'Edit account': {
+						const { field } = await prompt({
+							type: 'select',
+							name: 'field',
+							message: 'What edit',
+							choices: [
+								'name',
+								'username',
+								'password',
+								'nevermind'
+							]
+						}) as { field: string }
+						switch (field) {
+							case ('name'): {
+								const { newName } = await prompt([{
+									type: 'input',
+									name: 'newName',
+									message: `New account name for '${account.name}'`
+								}]) as { newName: string }
+								config.set('accounts', 
+									(config.get('accounts') as Account[])
+										.map(acc => acc.name === account.name ? { ...acc, name: newName } : acc)
+								)
+								break
+							}
+							case ('username'): {
+								const { newUsername } = await prompt([{
+									type: 'input',
+									name: 'newUsername',
+									message: `New username for '${account.name}'`
+								}]) as { newUsername: string }
+								config.set('accounts', 
+									(config.get('accounts') as Account[])
+										.map(acc => acc.name === account.name ? { ...acc, username: newUsername } : acc)
+								)
+								break
+							}
+							case ('password'): {
+								const { newPassword } = await prompt([{
+									type: 'input',
+									name: 'newPassword',
+									message: `New password for '${account.name}'`
+								}]) as { newPassword: string }
+								const cipher = crypto.createCipheriv('aes256', key, Buffer.from(account.iv, 'base64'))
+								const newPasswordCipher = Buffer.concat([
+									cipher.update(newPassword),
+									cipher.final()
+								])
+								config.set('accounts', 
+									(config.get('accounts') as Account[])
+										.map(acc => acc.name === account.name ? { ...acc, password: newPasswordCipher.toString('base64'), } : acc)
+								)
+								break
+							}
+						}
+						break
+					}
+					case 'Remove': {
+						const { proceed } = await prompt({
+							type: 'confirm',
+							name: 'proceed',
+							message: 'Are you sure?'
+						}) as { proceed: boolean }
+						if (proceed) {
+							const accounts = (config.get('accounts') as Account[])
+								.filter(({ name }) => name !== account.name)
+							config.set('accounts', accounts)
+						}
+						break
+					}
+					case 'Exit': {
+						return false
+					}
+					default: return
+				}
+			}
+			return true
+		}
+		case 'import from Firefox': {
+			const { filename } = await prompt({
+				type: 'input',
+				name: 'filename',
+				message: 'What file'
+			}) as { filename: string }
+			try {
+				const content = (await import('fs')).readFileSync(filename, "utf8")
+				const firefoxAccounts = (await import('csv-parse/sync')).parse(content, {
+					columns: true,
+					skip_empty_lines: true,
+					delimiter: ','
+				}) as FirefoxAccount[]
+				const importedAccounts = firefoxAccounts.map(acc => {
+					let iv = crypto.randomBytes(16)
+					let cipher = crypto.createCipheriv('aes256', key, iv)
+					let password = Buffer.concat([
+						cipher.update(acc.password),
+						cipher.final()
+					])
+					let domain = acc.url.match(/^(?:https?:\/\/)?(?:www.)?(.+)/i)?.[1]
+					let name = `[FF] ${domain} (${acc.username})`
+					return {
+						name: name,
+						username: acc.username,
+						password: password.toString('base64'),
+						iv: iv.toString('base64')
+					}
+				}) as Account[]
+				config.set('accounts', [
+					...config.get('accounts', []) as Account[],
+					...importedAccounts
+				])
+				console.log("Firefox accounts imported successfully")
+			} catch (e: any) {
+				console.error(`Could not import Firefox accounts from ${filename}: ${e.message}`)
+			}
+			return true
+		}
+		case 'exit': {
+			return false
 		}
 	}
 	return true
