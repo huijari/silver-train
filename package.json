@@ -26,6 +26,7 @@
     "clipboardy": "^3.0.0",
     "conf": "^10.1.2",
     "csv-parse": "^5.1.0",
-    "enquirer": "^2.3.6"
+    "enquirer": "^2.3.6",
+    "otpauth": "^7.1.3"
   }
 }
