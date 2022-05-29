@@ -159,7 +159,7 @@ async function run(key: Buffer) {
 								])
 								config.set('accounts', 
 									(config.get('accounts') as Account[])
-										.map(acc => acc.name === account.name ? { ...acc, password: newPasswordCipher.toString('base64'), iv: iv } : acc)
+										.map(acc => acc.name === account.name ? { ...acc, password: newPasswordCipher.toString('base64'), iv: iv.toString('base64') } : acc)
 								)
 								break
 							}
