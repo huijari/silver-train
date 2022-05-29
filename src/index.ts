@@ -24,6 +24,15 @@ type BrowserAccount = {
 	timePasswordChanged?: string
 }
 
+type PasswordGenerationParameters = {
+	includeSymbols: boolean,
+	length: number
+}
+
+function generateRandomNumberInInterval(min: number, max: number) {
+	return Math.floor(Math.random() * (max - min + 1) + min);
+}
+
 const config = new Conf()
 
 async function run(key: Buffer) {
@@ -48,7 +57,7 @@ async function run(key: Buffer) {
 			choices: [ 'new account', ...names, 'exit']
 			}) as { accountName: string }
 			if (accountName === 'new account') {
-				const loginInformation: Account = await prompt([{
+				let loginInformation: Account = await prompt([{
 					type: 'input',
 					name: 'name',
 					message: 'Account name'
@@ -59,11 +68,35 @@ async function run(key: Buffer) {
 				}, {
 					type: 'password',
 					name: 'password',
-					message: 'Password'
+					message: 'Password - leave it blank for automatic password generation'
 				}])
 
 				const iv = crypto.randomBytes(16)
 				const cipher = crypto.createCipheriv('aes256', key, iv)
+
+				if (!loginInformation.password) {
+					const generator = require('secure-random-password');
+					const parameters: PasswordGenerationParameters = await prompt([{
+						type: 'confirm',
+						name: 'includeSymbols',
+						message: 'Include special characters?',
+						initial: true
+					}, {
+						type: 'numeral',
+						name: 'length',
+						message: 'Length of the password',
+						initial: generateRandomNumberInInterval(12,16)
+					}]) as PasswordGenerationParameters
+					loginInformation.password = generator.randomPassword({ 
+						length: parameters.length, 
+						characters: [
+							generator.lower,
+							generator.upper,
+							generator.digits
+						].concat(parameters.includeSymbols ? [ generator.symbols ] : [])
+					})
+				}
+
 				const password = Buffer.concat([
 					cipher.update(loginInformation.password),
 					cipher.final()
@@ -165,13 +198,35 @@ async function run(key: Buffer) {
 								break
 							}
 							case ('password'): {
-								const { newPassword } = await prompt([{
+								let { newPassword } = await prompt([{
 									type: 'password',
 									name: 'newPassword',
-									message: `New password for '${account.name}'`
+									message: `New password for '${account.name}' - leave it blank for automatic password generation`
 								}]) as { newPassword: string }
 								const iv = crypto.randomBytes(16)
 								const cipher = crypto.createCipheriv('aes256', key, iv)
+								if (!newPassword) {
+									const generator = require('secure-random-password');
+									const parameters: PasswordGenerationParameters = await prompt([{
+										type: 'confirm',
+										name: 'includeSymbols',
+										message: 'Include special characters?',
+										initial: true
+									}, {
+										type: 'numeral',
+										name: 'length',
+										message: 'Length of the password',
+										initial: generateRandomNumberInInterval(12,16)
+									}]) as PasswordGenerationParameters
+									newPassword = generator.randomPassword({ 
+										length: parameters.length, 
+										characters: [
+											generator.lower,
+											generator.upper,
+											generator.digits
+										].concat(parameters.includeSymbols ? [ generator.symbols ] : [])
+									})
+								}
 								const newPasswordCipher = Buffer.concat([
 									cipher.update(newPassword),
 									cipher.final()

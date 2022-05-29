@@ -27,6 +27,7 @@
     "conf": "^10.1.2",
     "csv-parse": "^5.1.0",
     "enquirer": "^2.3.6",
+    "secure-random-password": "^0.2.3",
     "otpauth": "^7.1.3"
   }
 }
