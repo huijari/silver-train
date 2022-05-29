@@ -17,7 +17,7 @@ async function run(key: Buffer) {
 		type: 'autocomplete',
 		name: 'accountName',
 		message: 'Choose an account',
-    choices: [ 'new account', ...names ]
+    choices: [ 'new account', ...names, 'exit' ]
 	}) as { accountName: string }
 	if (accountName === 'new account') {
 		const loginInformation: Account = await prompt([{
@@ -51,7 +51,10 @@ async function run(key: Buffer) {
 			}
 		])
 		console.log('account saved')
-	} else {
+	} else if (accountName === 'exit') {
+		return false
+	}
+	else {
 		const account = (config.get('accounts') as Account[])
 			.find(({ name }: Account) => name === accountName)!
 
@@ -134,7 +137,6 @@ async function run(key: Buffer) {
 						)
 						break
 					}
-					default: return
 				}
 				break
 			}
@@ -151,9 +153,13 @@ async function run(key: Buffer) {
 				}
 				break
 			}
+			case 'Exit': {
+				return false
+			}
 			default: return
 		}
 	}
+	return true
 }
 
 async function init() {
@@ -191,7 +197,7 @@ async function init() {
 		console.log('setup complete')
 	}
 
-	run(key)
+	while (await run(key)) {}
 }
 
 init()
