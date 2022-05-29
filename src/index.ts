@@ -1,12 +1,15 @@
 import Conf from 'conf'
 import { prompt } from 'enquirer'
 import * as crypto from 'crypto'
+import * as OTP from 'otpauth'
 
 type Account = {
 	name: string,
 	username: string,
 	password: string,
-	iv: string
+	iv: string,
+	otpSecret: string,
+	otpIV: string
 }
 
 type BrowserAccount = {
@@ -122,6 +125,7 @@ async function run(key: Buffer) {
 					message: 'What do',
 					choices: [
 						'Copy password',
+						...(account.otpSecret !== undefined ? ['Copy authentication code'] : []),
 						'Edit account',
 						'Remove',
 						'Exit'
@@ -141,6 +145,20 @@ async function run(key: Buffer) {
 						clipboard.default.writeSync(password)
 						break
 					}
+					case 'Copy authentication code': {
+						const iv = Buffer.from(account.otpIV, 'base64')
+						const ciphertext = Buffer.from(account.otpSecret, 'base64')
+						const decipher = crypto.createDecipheriv('aes256', key, iv)
+						const secret = Buffer.concat([
+							decipher.update(ciphertext),
+							decipher.final()
+						]).toString()
+						const code = new OTP.TOTP({ secret }).generate()
+						const clipboard = await import('clipboardy')
+						clipboard.default.writeSync(code)
+						console.log(code)
+						break
+					}
 					case 'Edit account': {
 						const { field } = await prompt({
 							type: 'select',
@@ -150,6 +168,7 @@ async function run(key: Buffer) {
 								'name',
 								'username',
 								'password',
+								'2fa',
 								'nevermind'
 							]
 						}) as { field: string }
@@ -217,6 +236,38 @@ async function run(key: Buffer) {
 										.map(acc => acc.name === account.name ? { ...acc, password: newPasswordCipher.toString('base64'), iv: iv.toString('base64') } : acc)
 								)
 								break
+							}
+							case ('2fa'): {
+								const { secret } = await prompt([{
+									type: 'password',
+									name: 'secret',
+									message: `2FA secret for '${account.name}'`
+								}]) as { secret: string }
+								const totp = new OTP.TOTP({ secret })
+								const { code } = await prompt([{
+									type: 'input',
+									name: 'code',
+									message: 'Authentication code'
+								}]) as { code: string }
+								if (totp.generate() !== code) console.log('Invalid authentication code')
+								else {
+									const iv = crypto.randomBytes(16)
+									const cipher = crypto.createCipheriv('aes256', key, iv)
+									const otpSecret = Buffer.concat([
+										cipher.update(secret),
+										cipher.final()
+									])
+									config.set('accounts', 
+										(config.get('accounts') as Account[])
+											.map(acc =>
+												acc.name === account.name ? {
+													...acc,
+													otpSecret: otpSecret.toString('base64'),
+													otpIV: iv.toString('base64')
+												} : acc
+											)
+									)
+								}
 							}
 						}
 						break
