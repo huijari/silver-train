@@ -9,16 +9,16 @@ type Account = {
 	iv: string
 }
 
-type FirefoxAccount = {
+type BrowserAccount = {
 	url: string,
 	username: string,
 	password: string,
-	httpRealm: string,
-	formActionOrigin: string
-	guid: string
-	timeCreated: string
-	timeLastUsed: string
-	timePasswordChanged: string
+	httpRealm?: string,
+	formActionOrigin?: string
+	guid?: string
+	timeCreated?: string
+	timeLastUsed?: string
+	timePasswordChanged?: string
 }
 
 const config = new Conf()
@@ -31,7 +31,7 @@ async function run(key: Buffer) {
 		message: "Silver train is a comin'",
 		choices: [
 			'my accounts',
-			'import from Firefox',
+			'import from browser',
 			'exit',
 		]
 	}) as { action: string }
@@ -187,7 +187,7 @@ async function run(key: Buffer) {
 			}
 			return true
 		}
-		case 'import from Firefox': {
+		case 'import from browser': {
 			const { filename } = await prompt({
 				type: 'input',
 				name: 'filename',
@@ -195,12 +195,17 @@ async function run(key: Buffer) {
 			}) as { filename: string }
 			try {
 				const content = (await import('fs')).readFileSync(filename, "utf8")
-				const firefoxAccounts = (await import('csv-parse/sync')).parse(content, {
+				const browserAccounts = (await import('csv-parse/sync')).parse(content, {
 					columns: true,
 					skip_empty_lines: true,
 					delimiter: ','
-				}) as FirefoxAccount[]
-				const importedAccounts = firefoxAccounts.map(acc => {
+				}) as BrowserAccount[]
+				const { prefix } = await prompt({
+					type: 'input',
+					name: 'prefix',
+					message: 'Want to add a prefix for the imported accounts?'
+				}) as { prefix: string }
+				const importedAccounts = browserAccounts.map(acc => {
 					let iv = crypto.randomBytes(16)
 					let cipher = crypto.createCipheriv('aes256', key, iv)
 					let password = Buffer.concat([
@@ -208,7 +213,8 @@ async function run(key: Buffer) {
 						cipher.final()
 					])
 					let domain = acc.url.match(/^(?:https?:\/\/)?(?:www.)?(.+)/i)?.[1]
-					let name = `[FF] ${domain} (${acc.username})`
+					let suffix = acc.username ? ` (${acc.username})` : ""
+					let name = `${prefix}${domain}${suffix}`
 					return {
 						name: name,
 						username: acc.username,
@@ -220,9 +226,9 @@ async function run(key: Buffer) {
 					...config.get('accounts', []) as Account[],
 					...importedAccounts
 				])
-				console.log("Firefox accounts imported successfully")
+				console.log("Accounts imported successfully")
 			} catch (e: any) {
-				console.error(`Could not import Firefox accounts from ${filename}: ${e.message}`)
+				console.error(`Could not import accounts from ${filename}: ${e.message}`)
 			}
 			return true
 		}
