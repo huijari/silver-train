@@ -2,6 +2,7 @@ import Conf from 'conf'
 import { prompt } from 'enquirer'
 import * as crypto from 'crypto'
 import * as OTP from 'otpauth'
+import internal from 'stream'
 
 type Account = {
 	name: string
@@ -33,9 +34,38 @@ function generateRandomNumberInInterval(min: number, max: number) {
 	return Math.floor(Math.random() * (max - min + 1) + min)
 }
 
+function getAccountsWithDuplicatePasswords(key: Buffer, accounts: Account[]): string[] {
+	let counter: { [key: string]: [number, string] } = {}
+	let duplicateAccounts: string[] = []
+	accounts.forEach(acc => {
+		const iv = Buffer.from(acc.iv, 'base64')
+		const ciphertext = Buffer.from(acc.password, 'base64')
+		const decipher = crypto.createDecipheriv('aes256', key, iv)
+		const password = Buffer.concat([
+			decipher.update(ciphertext),
+			decipher.final(),
+		]).toString()
+		if (counter[password]) {
+			if (counter[password][0] === 1) {
+				duplicateAccounts.push(counter[password][1])
+			}
+			duplicateAccounts.push(acc.name)
+			counter[password][0]++
+		} else {
+			counter[password] = [1, acc.name]
+		}
+	})
+	return duplicateAccounts
+}
+
 const config = new Conf()
 
 async function run(key: Buffer) {
+	const accounts = (config.get('accounts') ?? []) as Account[]
+	const duplicates = getAccountsWithDuplicatePasswords(key, accounts)
+	if (duplicates.length) {
+		console.warn(`\x1b[33mWARNING: \x1b[0mYou have accounts with duplicate passwords: \n- ${duplicates.join('\n- ')}`)
+	}
 	const { action } = (await prompt({
 		type: 'select',
 		name: 'action',
@@ -44,7 +74,7 @@ async function run(key: Buffer) {
 	})) as { action: string }
 	switch (action) {
 		case 'my accounts': {
-			const names = ((config.get('accounts') as Account[]) ?? []).map(
+			const names = accounts.map(
 				({ name }: Account) => name
 			)
 			const { accountName } = (await prompt({
