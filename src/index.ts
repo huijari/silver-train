@@ -147,18 +147,19 @@ async function run(key: Buffer) {
 							}
 							case ('password'): {
 								const { newPassword } = await prompt([{
-									type: 'input',
+									type: 'password',
 									name: 'newPassword',
 									message: `New password for '${account.name}'`
 								}]) as { newPassword: string }
-								const cipher = crypto.createCipheriv('aes256', key, Buffer.from(account.iv, 'base64'))
+								const iv = crypto.randomBytes(16)
+								const cipher = crypto.createCipheriv('aes256', key, iv)
 								const newPasswordCipher = Buffer.concat([
 									cipher.update(newPassword),
 									cipher.final()
 								])
 								config.set('accounts', 
 									(config.get('accounts') as Account[])
-										.map(acc => acc.name === account.name ? { ...acc, password: newPasswordCipher.toString('base64'), } : acc)
+										.map(acc => acc.name === account.name ? { ...acc, password: newPasswordCipher.toString('base64'), iv: iv } : acc)
 								)
 								break
 							}
