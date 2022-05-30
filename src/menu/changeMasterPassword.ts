@@ -3,32 +3,19 @@ import { prompt } from 'enquirer'
 import * as crypto from 'crypto'
 
 import { Account, getDecryptedAccountPassword } from '../account'
+import { decrypt, encrypt } from '../crypto'
 
 const recreateAccount = (key: Buffer, newKey: Buffer) => (account: Account) => {
 	const password = getDecryptedAccountPassword(key, account)
-	const newIV = crypto.randomBytes(16)
-	let cipher = crypto.createCipheriv('aes256', newKey, newIV)
-	const newPassword = Buffer.concat([cipher.update(password), cipher.final()])
-
-	account.iv = newIV.toString('base64')
-	account.password = newPassword.toString('base64')
+	const [newPassword, newIV] = encrypt(newKey, password)
+	account.iv = newIV
+	account.password = newPassword
 
 	if (account.otpSecret !== undefined) {
-		const otpIV = Buffer.from(account.otpIV, 'base64')
-		const secretCipher = Buffer.from(account.otpSecret, 'base64')
-		const decipher = crypto.createDecipheriv('aes256', key, otpIV)
-		const secret = Buffer.concat([
-			decipher.update(secretCipher),
-			decipher.final(),
-		]).toString()
-
-		const newOtpIV = crypto.randomBytes(16)
-		cipher = crypto.createCipheriv('aes256', newKey, newOtpIV)
-		const newSecret = Buffer.concat([cipher.update(secret), cipher.final()])
-
-		account.otpIV = newOtpIV.toString('base64')
-		account.otpSecret = newSecret.toString('base64')
-
+		const secret = decrypt(key, account.otpIV, account.otpSecret)
+		const [newSecret, newOtpIV] = encrypt(newKey, secret)
+		account.otpIV = newOtpIV
+		account.otpSecret = newSecret
 	}
 	return account
 }

@@ -1,4 +1,4 @@
-import * as crypto from 'crypto'
+import { decrypt } from './crypto'
 
 export type Account = {
 	name: string
@@ -21,13 +21,9 @@ export type BrowserAccount = {
 	timePasswordChanged?: string
 }
 
-export function getDecryptedAccountPassword(key: Buffer, account: Account): string {
-	const iv = Buffer.from(account.iv, 'base64')
-	const ciphertext = Buffer.from(account.password, 'base64')
-	const decipher = crypto.createDecipheriv('aes256', key, iv)
-	const password = Buffer.concat([
-		decipher.update(ciphertext),
-		decipher.final(),
-	]).toString()
-	return password
+export function getDecryptedAccountPassword(
+	key: Buffer,
+	account: Account
+): string {
+	return decrypt(key, account.iv, account.password)
 }

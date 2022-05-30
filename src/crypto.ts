@@ -15,3 +15,20 @@ export function generateKeyAndSignature(
 
 	return [key, sign, salt]
 }
+
+export function encrypt(key: Buffer, raw: string) {
+	const iv = crypto.randomBytes(16)
+	let cipher = crypto.createCipheriv('aes256', key, iv)
+	const ciphertext = Buffer.concat([cipher.update(raw), cipher.final()])
+	return [ciphertext.toString('base64'), iv.toString('base64')]
+}
+
+export function decrypt(key: Buffer, ivString: string, ciphertext: string) {
+	const iv = Buffer.from(ivString, 'base64')
+	const decipher = crypto.createDecipheriv('aes256', key, iv)
+	const raw = Buffer.concat([
+		decipher.update(Buffer.from(ciphertext, 'base64')),
+		decipher.final(),
+	]).toString()
+	return raw
+}
