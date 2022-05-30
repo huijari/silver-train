@@ -6,8 +6,8 @@ import menu from './menu/index'
 
 async function run() {
 	const config = new Conf()
-	const key = await init()
-	if (key !== null) while (await menu(config, key)) {}
+	let key = await init()
+	if (key !== null) while (key = await menu(config, key)) { }
 
 	async function init() {
 		const { password } = (await prompt({

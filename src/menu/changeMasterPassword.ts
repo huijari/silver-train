@@ -2,17 +2,10 @@ import Conf from 'conf/dist/source'
 import { prompt } from 'enquirer'
 import * as crypto from 'crypto'
 
-import { Account } from '../account'
+import { Account, getDecryptedAccountPassword } from '../account'
 
 const recreateAccount = (key: Buffer, newKey: Buffer) => (account: Account) => {
-	const iv = Buffer.from(account.iv, 'base64')
-	const passwordCipher = Buffer.from(account.password, 'base64')
-	let decipher = crypto.createDecipheriv('aes256', key, iv)
-	const password = Buffer.concat([
-		decipher.update(passwordCipher),
-		decipher.final(),
-	]).toString()
-
+	const password = getDecryptedAccountPassword(key, account)
 	const newIV = crypto.randomBytes(16)
 	let cipher = crypto.createCipheriv('aes256', newKey, newIV)
 	const newPassword = Buffer.concat([cipher.update(password), cipher.final()])
@@ -23,7 +16,7 @@ const recreateAccount = (key: Buffer, newKey: Buffer) => (account: Account) => {
 	if (account.otpSecret !== undefined) {
 		const otpIV = Buffer.from(account.otpIV, 'base64')
 		const secretCipher = Buffer.from(account.otpSecret, 'base64')
-		decipher = crypto.createDecipheriv('aes256', key, otpIV)
+		const decipher = crypto.createDecipheriv('aes256', key, otpIV)
 		const secret = Buffer.concat([
 			decipher.update(secretCipher),
 			decipher.final(),
@@ -36,11 +29,11 @@ const recreateAccount = (key: Buffer, newKey: Buffer) => (account: Account) => {
 		account.otpIV = newOtpIV.toString('base64')
 		account.otpSecret = newSecret.toString('base64')
 
-		return account
 	}
+	return account
 }
 
-async function action(config: Conf, key: Buffer) {
+async function action(config: Conf, key: Buffer): Promise<Buffer> {
 	const { password } = (await prompt({
 		type: 'password',
 		name: 'password',
@@ -54,7 +47,7 @@ async function action(config: Conf, key: Buffer) {
 	hmac.update(salt)
 	const sign = hmac.digest('base64')
 
-	const accounts = (config.get('accounts') as Account[]).map(
+	const accounts = ((config.get('accounts') ?? []) as Account[]).map(
 		recreateAccount(key, newKey)
 	)
 
@@ -63,6 +56,7 @@ async function action(config: Conf, key: Buffer) {
 		sign,
 		accounts,
 	})
+	return newKey
 }
 
 export default action
