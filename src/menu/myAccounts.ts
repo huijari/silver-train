@@ -3,7 +3,7 @@ import { prompt } from 'enquirer'
 import * as crypto from 'crypto'
 import * as OTP from 'otpauth'
 
-import { Account } from '../account'
+import { Account, getDecryptedAccountPassword } from '../account'
 
 type PasswordGenerationParameters = {
 	includeSymbols: boolean
@@ -136,13 +136,7 @@ async function action(config: Conf, accounts: Account[], key: Buffer) {
 
 		switch (action) {
 			case 'Copy password': {
-				const iv = Buffer.from(account.iv, 'base64')
-				const ciphertext = Buffer.from(account.password, 'base64')
-				const decipher = crypto.createDecipheriv('aes256', key, iv)
-				const password = Buffer.concat([
-					decipher.update(ciphertext),
-					decipher.final(),
-				]).toString()
+				const password = getDecryptedAccountPassword(key, account)
 				const clipboard = await import('clipboardy')
 				clipboard.default.writeSync(password)
 				break

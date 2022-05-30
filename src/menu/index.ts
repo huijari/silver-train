@@ -1,8 +1,7 @@
 import Conf from 'conf'
 import { prompt } from 'enquirer'
-import * as crypto from 'crypto'
 
-import { Account } from '../account'
+import { Account, getDecryptedAccountPassword } from '../account'
 import myAccounts from './myAccounts'
 import importFromBrowser from './importFromBrowser'
 import changeMasterPassword from './changeMasterPassword'
@@ -11,30 +10,15 @@ function getAccountsWithDuplicatePasswords(
 	key: Buffer,
 	accounts: Account[]
 ): string[] {
-	let counter: { [key: string]: [number, string] } = {}
-	let duplicateAccounts: string[] = []
+	let duplicates: { [key: string]: string[] } = {}
 	accounts.forEach((acc) => {
-		const iv = Buffer.from(acc.iv, 'base64')
-		const ciphertext = Buffer.from(acc.password, 'base64')
-		const decipher = crypto.createDecipheriv('aes256', key, iv)
-		const password = Buffer.concat([
-			decipher.update(ciphertext),
-			decipher.final(),
-		]).toString()
-		if (counter[password]) {
-			if (counter[password][0] === 1) {
-				duplicateAccounts.push(counter[password][1])
-			}
-			duplicateAccounts.push(acc.name)
-			counter[password][0]++
-		} else {
-			counter[password] = [1, acc.name]
-		}
+		const password = getDecryptedAccountPassword(key, acc)
+		duplicates[password] = duplicates[password] ? [...duplicates[password], acc.name] : [acc.name]
 	})
-	return duplicateAccounts
+	return Object.values(duplicates).filter(arr => arr.length > 1).flat()
 }
 
-async function menu(config: Conf, key: Buffer) {
+async function menu(config: Conf, key: Buffer): Promise<Buffer | null> {
 	const accounts = (config.get('accounts') ?? []) as Account[]
 	const duplicates = getAccountsWithDuplicatePasswords(key, accounts)
 	if (duplicates.length) {
@@ -58,21 +42,21 @@ async function menu(config: Conf, key: Buffer) {
 	switch (action) {
 		case 'my accounts': {
 			await myAccounts(config, accounts, key)
-			return true
+			return key
 		}
 		case 'import from browser': {
 			await importFromBrowser(config, key)
-			return true
+			return key
 		}
 		case 'change master password': {
-			await changeMasterPassword(config, key)
-			return true
+			key = await changeMasterPassword(config, key)
+			return key
 		}
 		case 'exit': {
-			return false
+			return null
 		}
 	}
-	return true
+	return key
 }
 
 export default menu
