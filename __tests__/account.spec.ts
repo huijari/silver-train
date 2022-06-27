@@ -1,4 +1,4 @@
-import { Account, encryptAccount, generateRandomPassword, getAccountsWithDuplicatePasswords } from '../src/account'
+import { Account, BrowserAccount, encryptAccount, generateRandomPassword, getAccountsWithDuplicatePasswords, importBrowserAccount } from '../src/account'
 import { generateKeyAndSignature, encrypt, decrypt } from '../src/crypto'
 
 const masterPassword = "Master@Password"
@@ -45,4 +45,25 @@ it('detects accounts with duplicate passwords', () => {
     const accounts = [encryptAccount(key, 'account 1', 'username', password), encryptAccount(key, 'account 2', 'username', password)]
     expect(getAccountsWithDuplicatePasswords(key, accounts)).toContainEqual('account 1')
     expect(getAccountsWithDuplicatePasswords(key, accounts)).toContainEqual('account 2')
+})
+
+it('imports browser accounts with encrypted password', () => {
+    const browserAcc: BrowserAccount = {
+        url: "www.google.com",
+        username: "test account",
+        password: password
+    }
+    const newAccount = importBrowserAccount(key, browserAcc)
+    expect(decrypt(key, newAccount.iv, newAccount.password)).toEqual(browserAcc.password)
+})
+
+it('imports browser accounts with user defined prefix', () => {
+    const prefix = "[FireFox]"
+    const browserAcc: BrowserAccount = {
+        url: "www.google.com",
+        username: "test account",
+        password: password
+    }
+    const newAccount = importBrowserAccount(key, browserAcc, prefix)
+    expect(newAccount.name).toMatch(new RegExp(`${prefix}.+`))
 })

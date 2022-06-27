@@ -67,3 +67,16 @@ export function generateRandomPassword(params: PasswordGenerationParameters): st
 		].concat(params.includeSymbols ? [generator.symbols] : []),
 	})
 }
+
+export function importBrowserAccount(key: Buffer, browserAcc: BrowserAccount, prefix?: string) {
+	let domain = browserAcc.url.match(/^(?:https?:\/\/)?(?:www.)?(.+)/i)?.[1]
+	let suffix = browserAcc.username ? ` (${browserAcc.username})` : ''
+	let name = `${prefix ?? ""}${domain}${suffix}`
+	const [cipheredPassword, iv] = encrypt(key, browserAcc.password)
+	return {
+		name: name,
+		username: browserAcc.username,
+		password: cipheredPassword,
+		iv: iv
+	}
+}

@@ -2,7 +2,7 @@ import Conf from 'conf'
 import { prompt } from 'enquirer'
 import * as crypto from 'crypto'
 
-import { Account, BrowserAccount } from '../account'
+import { Account, BrowserAccount, importBrowserAccount } from '../account'
 
 async function action(config: Conf, key: Buffer) {
 	const { filename } = (await prompt({
@@ -23,21 +23,7 @@ async function action(config: Conf, key: Buffer) {
 			message: 'Want to add a prefix for the imported accounts?',
 		})) as { prefix: string }
 		const importedAccounts = browserAccounts.map((acc) => {
-			let iv = crypto.randomBytes(16)
-			let cipher = crypto.createCipheriv('aes256', key, iv)
-			let password = Buffer.concat([
-				cipher.update(acc.password),
-				cipher.final(),
-			])
-			let domain = acc.url.match(/^(?:https?:\/\/)?(?:www.)?(.+)/i)?.[1]
-			let suffix = acc.username ? ` (${acc.username})` : ''
-			let name = `${prefix}${domain}${suffix}`
-			return {
-				name: name,
-				username: acc.username,
-				password: password.toString('base64'),
-				iv: iv.toString('base64'),
-			}
+			return importBrowserAccount(key, acc, prefix)
 		}) as Account[]
 		config.set('accounts', [
 			...(config.get('accounts', []) as Account[]),
