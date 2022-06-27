@@ -2,13 +2,7 @@ import Conf from 'conf'
 import { prompt } from 'enquirer'
 import * as crypto from 'crypto'
 import * as OTP from 'otpauth'
-
-import { Account, getDecryptedAccountPassword } from '../account'
-
-type PasswordGenerationParameters = {
-	includeSymbols: boolean
-	length: number
-}
+import { Account, encryptAccount, generateRandomPassword, getAuthenticationCode, getDecryptedAccountPassword, PasswordGenerationParameters, setAccount2FA } from '../account'
 
 function generateRandomNumberInInterval(min: number, max: number) {
 	return Math.floor(Math.random() * (max - min + 1) + min)
@@ -52,7 +46,7 @@ async function action(config: Conf, accounts: Account[], key: Buffer) {
 		choices: ['new account', ...names, 'exit'],
 	})) as { accountName: string }
 	if (accountName === 'new account') {
-		let loginInformation: Account = await prompt([
+		let newAccount: {name: string, username: string, password: string} = await prompt([
 			{
 				type: 'input',
 				name: 'name',
@@ -70,10 +64,7 @@ async function action(config: Conf, accounts: Account[], key: Buffer) {
 			},
 		])
 
-		const iv = crypto.randomBytes(16)
-		const cipher = crypto.createCipheriv('aes256', key, iv)
-
-		if (!loginInformation.password) {
+		if (!newAccount.password) {
 			const generator = require('secure-random-password')
 			const parameters: PasswordGenerationParameters = (await prompt([
 				{
@@ -89,7 +80,7 @@ async function action(config: Conf, accounts: Account[], key: Buffer) {
 					initial: generateRandomNumberInInterval(12, 16),
 				},
 			])) as PasswordGenerationParameters
-			loginInformation.password = generator.randomPassword({
+			newAccount.password = generator.randomPassword({
 				length: parameters.length,
 				characters: [generator.lower, generator.upper, generator.digits].concat(
 					parameters.includeSymbols ? [generator.symbols] : []
@@ -97,19 +88,9 @@ async function action(config: Conf, accounts: Account[], key: Buffer) {
 			})
 		}
 
-		const password = Buffer.concat([
-			cipher.update(loginInformation.password),
-			cipher.final(),
-		])
-
 		config.set('accounts', [
 			...(config.get('accounts', []) as Account[]),
-			{
-				name: loginInformation.name,
-				username: loginInformation.username,
-				password: password.toString('base64'),
-				iv: iv.toString('base64'),
-			},
+			encryptAccount(key, newAccount.name, newAccount.username, newAccount.password),
 		])
 		console.log('account saved')
 	} else if (accountName === 'exit') {
@@ -142,14 +123,7 @@ async function action(config: Conf, accounts: Account[], key: Buffer) {
 				break
 			}
 			case 'Copy authentication code': {
-				const iv = Buffer.from(account.otpIV, 'base64')
-				const ciphertext = Buffer.from(account.otpSecret, 'base64')
-				const decipher = crypto.createDecipheriv('aes256', key, iv)
-				const secret = Buffer.concat([
-					decipher.update(ciphertext),
-					decipher.final(),
-				]).toString()
-				const code = new OTP.TOTP({ secret }).generate()
+				const code = getAuthenticationCode(key, account) ?? ""
 				const clipboard = await import('clipboardy')
 				clipboard.default.writeSync(code)
 				console.log(code)
@@ -206,7 +180,6 @@ async function action(config: Conf, accounts: Account[], key: Buffer) {
 						const iv = crypto.randomBytes(16)
 						const cipher = crypto.createCipheriv('aes256', key, iv)
 						if (!newPassword) {
-							const generator = require('secure-random-password')
 							const parameters: PasswordGenerationParameters = (await prompt([
 								{
 									type: 'confirm',
@@ -221,14 +194,7 @@ async function action(config: Conf, accounts: Account[], key: Buffer) {
 									initial: generateRandomNumberInInterval(12, 16),
 								},
 							])) as PasswordGenerationParameters
-							newPassword = generator.randomPassword({
-								length: parameters.length,
-								characters: [
-									generator.lower,
-									generator.upper,
-									generator.digits,
-								].concat(parameters.includeSymbols ? [generator.symbols] : []),
-							})
+							newPassword = generateRandomPassword(parameters)
 						}
 						const newPasswordCipher = Buffer.concat([
 							cipher.update(newPassword),
@@ -254,7 +220,6 @@ async function action(config: Conf, accounts: Account[], key: Buffer) {
 								message: `2FA secret for '${account.name}'`,
 							},
 						])) as { secret: string }
-						const totp = new OTP.TOTP({ secret })
 						const { code } = (await prompt([
 							{
 								type: 'input',
@@ -262,25 +227,20 @@ async function action(config: Conf, accounts: Account[], key: Buffer) {
 								message: 'Authentication code',
 							},
 						])) as { code: string }
-						if (totp.generate() !== code)
-							console.log('Invalid authentication code')
-						else {
-							const iv = crypto.randomBytes(16)
-							const cipher = crypto.createCipheriv('aes256', key, iv)
-							const otpSecret = Buffer.concat([
-								cipher.update(secret),
-								cipher.final(),
-							])
+						try {
+							const updatedAccount = setAccount2FA(key, secret, code, account)
 							config.set(
 								'accounts',
 								(config.get('accounts') as Account[]).map(
 									setOtp(
 										account.name,
-										otpSecret.toString('base64'),
-										iv.toString('base64')
+										updatedAccount.otpSecret,
+										updatedAccount.otpIV
 									)
 								)
 							)
+						} catch(e) {
+							console.log(e)
 						}
 					}
 				}

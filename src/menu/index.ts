@@ -1,22 +1,10 @@
 import Conf from 'conf'
 import { prompt } from 'enquirer'
 
-import { Account, getDecryptedAccountPassword } from '../account'
+import { Account, getDecryptedAccountPassword, getAccountsWithDuplicatePasswords } from '../account'
 import myAccounts from './myAccounts'
 import importFromBrowser from './importFromBrowser'
 import changeMasterPassword from './changeMasterPassword'
-
-function getAccountsWithDuplicatePasswords(
-	key: Buffer,
-	accounts: Account[]
-): string[] {
-	let duplicates: { [key: string]: string[] } = {}
-	accounts.forEach((acc) => {
-		const password = getDecryptedAccountPassword(key, acc)
-		duplicates[password] = duplicates[password] ? [...duplicates[password], acc.name] : [acc.name]
-	})
-	return Object.values(duplicates).filter(arr => arr.length > 1).flat()
-}
 
 async function menu(config: Conf, key: Buffer): Promise<Buffer | null> {
 	const accounts = (config.get('accounts') ?? []) as Account[]
