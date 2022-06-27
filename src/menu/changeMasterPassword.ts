@@ -11,7 +11,7 @@ const recreateAccount = (key: Buffer, newKey: Buffer) => (account: Account) => {
 	account.iv = newIV
 	account.password = newPassword
 
-	if (account.otpSecret !== undefined) {
+	if (account.otpSecret && account.otpIV) {
 		const secret = decrypt(key, account.otpIV, account.otpSecret)
 		const [newSecret, newOtpIV] = encrypt(newKey, secret)
 		account.otpIV = newOtpIV
