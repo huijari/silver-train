@@ -1,4 +1,5 @@
 import { encrypt, decrypt } from './crypto'
+import * as OTP from 'otpauth'
 
 export type Account = {
 	name: string
@@ -33,6 +34,30 @@ export function getDecryptedAccountPassword(
 	return decrypt(key, account.iv, account.password)
 }
 
+export function setAccount2FA(key: Buffer, secret: string, code: string, account: Account): Account & { otpSecret: string, otpIV: string} {
+	const totp = new OTP.TOTP({ secret })
+	if (totp.generate() !== code)
+		throw "Invalid authentication code"
+	const [cipheredOtpSecret, iv] = encrypt(key, secret)
+	return {
+		...account,
+		otpSecret: cipheredOtpSecret,
+		otpIV: iv
+	}
+}
+
+
+export function getAuthenticationCode(
+	key: Buffer,
+	account: Account
+): string | undefined {
+	if (account.otpIV && account.otpSecret) {
+		const secret = decrypt(key, account.otpIV, account.otpSecret)
+		const code = new OTP.TOTP({ secret }).generate()
+		return code
+	}
+	return undefined
+}
 
 export function getAccountsWithDuplicatePasswords(
 	key: Buffer,

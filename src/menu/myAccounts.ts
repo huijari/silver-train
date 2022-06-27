@@ -2,7 +2,7 @@ import Conf from 'conf'
 import { prompt } from 'enquirer'
 import * as crypto from 'crypto'
 import * as OTP from 'otpauth'
-import { Account, encryptAccount, generateRandomPassword, getDecryptedAccountPassword, PasswordGenerationParameters } from '../account'
+import { Account, encryptAccount, generateRandomPassword, getAuthenticationCode, getDecryptedAccountPassword, PasswordGenerationParameters, setAccount2FA } from '../account'
 
 function generateRandomNumberInInterval(min: number, max: number) {
 	return Math.floor(Math.random() * (max - min + 1) + min)
@@ -123,19 +123,10 @@ async function action(config: Conf, accounts: Account[], key: Buffer) {
 				break
 			}
 			case 'Copy authentication code': {
-				if (account.otpIV && account.otpSecret) {
-					const iv = Buffer.from(account.otpIV, 'base64')
-					const ciphertext = Buffer.from(account.otpSecret, 'base64')
-					const decipher = crypto.createDecipheriv('aes256', key, iv)
-					const secret = Buffer.concat([
-						decipher.update(ciphertext),
-						decipher.final(),
-					]).toString()
-					const code = new OTP.TOTP({ secret }).generate()
-					const clipboard = await import('clipboardy')
-					clipboard.default.writeSync(code)
-					console.log(code)
-				}
+				const code = getAuthenticationCode(key, account) ?? ""
+				const clipboard = await import('clipboardy')
+				clipboard.default.writeSync(code)
+				console.log(code)
 				break
 			}
 			case 'Edit account': {
@@ -229,7 +220,6 @@ async function action(config: Conf, accounts: Account[], key: Buffer) {
 								message: `2FA secret for '${account.name}'`,
 							},
 						])) as { secret: string }
-						const totp = new OTP.TOTP({ secret })
 						const { code } = (await prompt([
 							{
 								type: 'input',
@@ -237,25 +227,20 @@ async function action(config: Conf, accounts: Account[], key: Buffer) {
 								message: 'Authentication code',
 							},
 						])) as { code: string }
-						if (totp.generate() !== code)
-							console.log('Invalid authentication code')
-						else {
-							const iv = crypto.randomBytes(16)
-							const cipher = crypto.createCipheriv('aes256', key, iv)
-							const otpSecret = Buffer.concat([
-								cipher.update(secret),
-								cipher.final(),
-							])
+						try {
+							const updatedAccount = setAccount2FA(key, secret, code, account)
 							config.set(
 								'accounts',
 								(config.get('accounts') as Account[]).map(
 									setOtp(
 										account.name,
-										otpSecret.toString('base64'),
-										iv.toString('base64')
+										updatedAccount.otpSecret,
+										updatedAccount.otpIV
 									)
 								)
 							)
+						} catch(e) {
+							console.log(e)
 						}
 					}
 				}
